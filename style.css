@@ -1,0 +1,489 @@
+/* === FONDASI & FONT === */
+:root {
+    --color-primary: #1a237e;
+    --color-accent: #198754;
+    --color-accent-hover: #157347;
+    --color-secondary: #6c757d;
+    --color-secondary-hover: #5c6670;
+    --color-danger: #dc3545;
+    --color-danger-hover: #bb2d3b;
+    --color-background: #f8f9fa;
+    --color-card: #ffffff;
+    --color-text: #212529;
+    --color-text-light: #6c757d;
+    --color-border: #dee2e6;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Poppins', Arial, sans-serif;
+    background-color: var(--color-background);
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+label {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 5px;
+    display: block;
+    color: var(--color-text-light);
+}
+
+.hidden {
+    display: none !important;
+}
+.invisible {
+    visibility: hidden;
+}
+
+/* === LAYOUT UTAMA === */
+.main-header {
+    text-align: center;
+    padding: 25px 20px;
+    background: var(--color-card);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow);
+}
+.main-header h1 {
+    color: var(--color-primary);
+    margin: 0;
+}
+.main-header p {
+    font-size: 1.1rem;
+    color: var(--color-text-light);
+    margin: 5px 0 0 0;
+}
+
+.container {
+    max-width: 850px;
+    margin: 30px auto;
+    padding: 0 15px;
+}
+
+.card {
+    background: var(--color-card);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 25px;
+    padding: 25px;
+    transition: box-shadow 0.3s ease;
+    border: 1px solid var(--color-border);
+}
+.card:hover {
+    box-shadow: var(--shadow-hover);
+}
+.card h2 {
+    color: var(--color-primary);
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 10px;
+}
+
+#editor-section,
+#bulk-section {
+    display: none;
+}
+#upload-section {
+    text-align: center;
+}
+#upload-section p {
+    font-size: 1rem;
+    color: var(--color-text-light);
+    margin-bottom: 20px;
+}
+#upload-section input[type="file"] {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+/* === TOMBOL & INPUT === */
+input[type="text"],
+input[type="number"],
+input[type="file"],
+select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    background-color: #fff;
+    min-width: 0;
+    height: 42px; 
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+}
+input[type="text"]:disabled {
+    background-color: #f1f3f5;
+    color: var(--color-text-light);
+    font-style: italic;
+}
+
+input[type="file"] {
+    background: #f8f9fa;
+    padding: 4px;
+    height: auto; 
+}
+input[type="file"]::file-selector-button {
+    padding: 5px 12px;
+    border: none;
+    border-radius: 4px;
+    background: var(--color-secondary);
+    color: white;
+    cursor: pointer;
+    margin-right: 10px;
+    transition: background-color 0.3s;
+}
+input[type="file"]::file-selector-button:hover {
+    background: var(--color-secondary-hover);
+}
+
+.full-width {
+    width: 100%;
+}
+
+/* Tombol Generik */
+button, .btn-primary, .btn-secondary, .btn-danger {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-block;
+    height: 42px; 
+    line-height: 20px;
+}
+
+/* Tombol Utama (Hijau) */
+.btn-primary,
+#download-btn,
+#generate-bulk-btn {
+    background-color: var(--color-accent);
+    color: white;
+}
+.btn-primary:hover,
+#download-btn:hover,
+#generate-bulk-btn:hover:not(:disabled) {
+    background-color: var(--color-accent-hover);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.btn-primary:disabled,
+#generate-bulk-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Tombol Sekunder (Abu-abu) */
+.btn-secondary,
+#fetch-gdoc-btn,
+#add-font-btn,
+#add-text-btn {
+    background-color: var(--color-secondary);
+    color: white;
+}
+.btn-secondary:hover,
+#fetch-gdoc-btn:hover,
+#add-font-btn:hover,
+#add-text-btn:hover {
+    background-color: var(--color-secondary-hover);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Tombol Hapus (Merah) */
+.btn-danger,
+#delete-text-btn {
+    background-color: var(--color-danger);
+    color: white;
+}
+.btn-danger:hover,
+#delete-text-btn:hover {
+    background-color: var(--color-danger-hover);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* === [DIROMBAK] TOOLBAR === */
+#toolbar {
+    /* 1. Kontainer Geser */
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory; /* Efek geser/snapping */
+    
+    /* 2. Style Kontainer */
+    background: var(--color-background);
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    margin-bottom: 25px;
+    padding: 0; /* Hapus padding dari container */
+}
+
+/* [PERBAIKAN] Ini adalah "Kartu-kartu" di dalam toolbar */
+#toolbar > .tool-group,
+#toolbar > #text-edit-controls {
+    /* 1. Ukuran: Lebar 100% dari container */
+    width: 100%; 
+    flex-shrink: 0; /* Mencegah kartu mengecil */
+    
+    /* 2. Snapping */
+    scroll-snap-align: start; 
+    
+    /* 3. Style Kartu Internal */
+    display: inline-block;
+    vertical-align: top;
+    white-space: normal;
+    padding: 20px; /* Padding di dalam kartu */
+    
+    /* 4. Hapus style kartu lama */
+    border: none;
+    background: none;
+    margin-right: 0;
+    box-shadow: none;
+    
+    /* 5. Pemisah antar kartu */
+    border-right: 1px solid var(--color-border);
+}
+#toolbar > :last-child {
+    border-right: none; /* Hapus border di kartu terakhir */
+}
+
+
+/* [PERBAIKAN] #text-edit-controls adalah "kartu" */
+#text-edit-controls {
+    display: inline-block; 
+    flex-direction: column;
+    gap: 15px;
+    border-style: none; /* Hapus border dashed */
+}
+
+#text-edit-controls.hidden {
+    display: none !important;
+}
+
+.tool-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.tool-group.separator {
+    border-top: 1px solid var(--color-border);
+    padding-top: 15px;
+    margin-top: 15px;
+}
+
+.tool-group-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+/* Grid 3 kolom */
+.tool-group-grid.grid-3-col {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr; /* Warna | Style | Rata */
+    gap: 10px;
+    align-items: flex-end;
+}
+.tool-group-grid.grid-3-col .tool-group {
+    min-width: 0;
+}
+
+
+.color-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.color-controls input[type="color"] {
+    width: 42px;
+    height: 42px;
+    padding: 2px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.color-controls input[type="text"] {
+    flex: 1;
+    font-family: monospace;
+    min-width: 70px;
+    flex-basis: 70px;
+    flex-grow: 0;
+}
+.color-controls button {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.style-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.style-btn,
+#color-picker-btn {
+    width: 100%;
+    height: 42px;
+    padding: 0;
+    font-size: 16px;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+}
+.style-btn:hover,
+#color-picker-btn:hover {
+    background: #f1f3f5;
+    border-color: #adb5bd;
+}
+.style-btn.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+#position-controls {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    width: 100%;
+}
+#position-controls button {
+    width: 100%;
+    height: 42px;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+    background: #fff;
+    border: 1px solid var(--color-border);
+}
+#position-controls button:hover {
+    background: #f1f3f5;
+    border-color: #adb5bd;
+}
+
+.font-add-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+/* === CANVAS === */
+#canvas-container {
+    width: 100%;
+    overflow: auto; 
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    min-height: 400px;
+    margin-bottom: 20px;
+}
+canvas {
+    display: block;
+    box-shadow: 0 0 20px rgba(0,0,0,0.15);
+    max-width: 100%;
+    height: auto;
+    background: white;
+    cursor: crosshair;
+}
+
+.action-buttons {
+    text-align: center;
+}
+
+/* === AREA BULK === */
+.bulk-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+.bulk-upload, .bulk-gdoc {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bulk-generate-controls {
+    text-align: center;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+.bulk-generate-controls .control-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bulk-generate-controls label {
+    margin: 0;
+    display: inline;
+    font-weight: 500;
+    color: var(--color-text);
+}
+.bulk-generate-controls select {
+    width: auto;
+}
+
+.zip-option label {
+    font-weight: 500;
+    font-size: 14px;
+    margin-left: 5px;
+    cursor: pointer;
+    color: var(--color-text);
+}
+.zip-option input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+    transform: scale(1.2);
+}
+
+.status-message {
+    margin-top: 15px;
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 15px;
+    border-radius: 6px;
+    line-height: 1.5;
+    background: #f1f3f5;
+    border: 1px solid var(--color-border);
+}

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate Generator</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
+    
+    <script defer src="script.js"></script>
+</head>
+<body>
+
+    <header class="main-header">
+        <h1>Certificate Generator</h1>
+        <p>Alat modern untuk membuat sertifikat secara massal.</p>
+    </header>
+
+    <main class="container">
+        <div id="upload-section" class="card">
+            <h2>Langkah 1: Upload Desain Sertifikat</h2>
+            <p>Mendukung format: .png, .jpeg, .pdf (halaman pertama)</p>
+            <input type="file" id="design-upload" accept="image/png,image/jpeg,application/pdf">
+        </div>
+
+        <section id="editor-section" class="card">
+            <h2>Langkah 2: Atur Bidang Teks</h2>
+
+            <div id="toolbar">
+                
+                <div class="tool-group">
+                    <label>Kontrol Teks</label>
+                    
+                    <div class="tool-group-grid">
+                        <div id="delete-text-container" class="invisible">
+                            <button id="delete-text-btn" class="btn-danger full-width">Hapus Teks</button>
+                        </div>
+                        <button id="add-text-btn" class="btn-secondary full-width" title="Tambah Teks Baru">T+ Tambah Teks</button>
+                    </div>
+
+                    <div class="tool-group full-width separator">
+                        <label>Tambah Font Kustom (dari File .ttf, .otf):</label>
+                        <div class="font-add-controls">
+                            <input type="text" id="new-font-name" placeholder="Nama Font (cth: 'Roboto Kustom')">
+                            <input type="file" id="new-font-file" accept=".ttf,.otf,.woff,.woff2">
+                        </div>
+                        <button id="add-font-btn" class="btn-secondary full-width">Tambah Font</button>
+                    </div>
+                </div>
+
+                <div id="text-edit-controls" class="hidden"> 
+                    <div class="tool-group-grid separator">
+                        <div class="tool-group">
+                            <label for="data-link-select">Link Data:</label>
+                            <select id="data-link-select"></select>
+                        </div>
+                        <div class="tool-group">
+                            <label for="text-input">Teks Statis:</label>
+                            <input type="text" id="text-input" placeholder="Ketik teks statis...">
+                        </div>
+                    </div>
+                    
+                    <div class="tool-group-grid grid-3-col">
+                        <div class="tool-group">
+                            <label for="font-family">Font:</label>
+                            <select id="font-family">
+                                <option value="Times New Roman">Times New Roman</option>
+                                <option value="Poppins">Poppins</option><option value="Arial">Arial</option>
+                                <option value="sans-serif">Sans Serif</option><option value="Verdana">Verdana</option>
+                            </select>
+                        </div>
+                        <div class="tool-group">
+                            <label for="font-size">Ukuran:</label>
+                            <input type="number" id="font-size" value="50" list="font-sizes-list">
+                            <datalist id="font-sizes-list">
+                                <option value="24"></option><option value="36"></option><option value="48"></option>
+                                <option value="60"></option><option value="72"></option><option value="96"></option>
+                            </datalist>
+                        </div>
+                        
+                        <div class="tool-group">
+                            <label for="text-transform">Gaya Penulisan:</label>
+                            <select id="text-transform">
+                                <option value="none">Normal</option>
+                                <option value="uppercase">Uppercase</option>
+                                <option value="titlecase">Titlecase</option>
+                            </select>
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="tool-group-grid grid-3-col">
+                        <div class="tool-group">
+                            <label>Warna:</label>
+                            <div class="color-controls">
+                                <input type="color" id="font-color" value="#000000">
+                                <input type="text" id="font-color-hex" value="#000000" maxlength="7">
+                                <button id="color-picker-btn" title="Ambil warna dari desain">🎨</button>
+                            </div>
+                        </div>
+                        <div class="tool-group">
+                            <label>Style:</label>
+                            <div class="style-controls">
+                                <button id="font-bold" class="style-btn"><b>B</b></button>
+                                <button id="font-italic" class="style-btn"><i>I</i></button>
+                            </div>
+                        </div>
+                        <div class="tool-group">
+                            <label>Rata:</label>
+                            <select id="font-align">
+                                <option value="center">Tengah</option><option value="left">Kiri</option>
+                                <option value="right">Kanan</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="tool-group full-width separator">
+                        <label>Geser Teks (Presisi):</label>
+                        <div id="position-controls">
+                            <button id="move-up" title="Geser Atas">↑</button>
+                            <button id="move-down" title="Geser Bawah">↓</button>
+                            <button id="move-left" title="Geser Kiri">←</button>
+                            <button id="move-right" title="Geser Kanan">→</button>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <div id="canvas-container">
+                <canvas id="sertifikat-canvas"></canvas>
+            </div>
+            
+            <div class="action-buttons" style="display: flex; justify-content: center; gap: 10px;">
+                <button id="save-template-btn" class="btn-secondary">Simpan Template</button>
+                <button id="load-template-btn" class="btn-secondary">Muat Template</button>
+                <button id="download-btn" class="btn-primary">Download (Single PNG)</button>
+            </div>
+            
+            <input type="file" id="load-template-input" class="hidden" accept=".json">
+            </section>
+
+        <section id="bulk-section" class="card">
+            <h2>Langkah 3: Otomatisasi Massal</h2>
+            <div class="bulk-options">
+                <div class="bulk-upload">
+                    <label><b>Opsi 1: Upload File</b> (.csv, .xls, .xlsx)</label>
+                    <input type="file" id="bulk-file-upload" accept=".csv,.xls,.xlsx">
+                </div>
+                <div class="bulk-gdoc">
+                    <label><b>Opsi 2: Link Google Sheet</b> (Wajib "Publish to web" sebagai CSV)</label>
+                    <input type="text" id="gdoc-link" placeholder="Tempel link 'publish to web' CSV...">
+                    <button id="fetch-gdoc-btn" class="btn-secondary full-width">Ambil Data</button>
+                </div>
+            </div>
+            
+            <div class="bulk-generate-controls">
+                <div class="control-item">
+                    <label for="bulk-format">Format Output:</label>
+                    <select id="bulk-format">
+                        <option value="png">PNG</option>
+                        <option value="pdf">PDF</option>
+                    </select>
+                </div>
+                <div class="control-item zip-option">
+                    <input type="checkbox" id="download-as-zip" checked>
+                    <label for="download-as-zip">Unduh sebagai .zip</label>
+                </div>
+                <button id="generate-bulk-btn" class="btn-primary" disabled>Mulai Generasi Massal</button>
+            </div>
+            
+            <div id="bulk-status" class="status-message"></div>
+        </section>
+    </main>
+
+</body>
+</html>
