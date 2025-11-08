@@ -1,4 +1,4 @@
-// JAVASCRIPT untuk fungsionalitas
+l// JAVASCRIPT untuk fungsionalitas
 
 // Inisialisasi PDF.js Worker
 if (typeof pdfjsLib !== 'undefined') {
@@ -58,10 +58,12 @@ const generateBulkBtn = document.getElementById('generate-bulk-btn');
 const bulkStatusDiv = document.getElementById('bulk-status');
 const zipCheckbox = document.getElementById('download-as-zip');
 
+// <-- TAMBAHKAN BLOK DI BAWAH INI -->
 // Elemen Simpan/Muat Template
 const saveTemplateBtn = document.getElementById('save-template-btn');
 const loadTemplateBtn = document.getElementById('load-template-btn');
 const loadTemplateInput = document.getElementById('load-template-input');
+// <-- AKHIR BLOK TAMBAHAN -->
 
 // Variabel Global
 let backgroundImage;
@@ -72,7 +74,6 @@ let dataList = [];
 let dataHeaders = [];
 let isDragging = false;
 let dragStartOffset = { x: 0, y: 0 };
-let isGSheetLink = false; // <-- MODIFIKASI: Penanda GSheet
 
 // --- FUNGSI UTAMA ---
 
@@ -310,40 +311,20 @@ function updateToolbarForSelected() {
     }
 }
 
-
-// <-- [MODIFIKASI BESAR] Fungsi ini diganti total -->
 // Mengisi dropdown "Link Data"
 function updateDataLinkDropdown() {
     dataLinkSelect.innerHTML = '';
-    
-    // 1. Tambahkan opsi Teks Statis (selalu ada)
     const staticOption = document.createElement('option');
     staticOption.value = "STATIC_TEXT";
     staticOption.textContent = "Teks Statis (Tidak Di-link)";
     dataLinkSelect.appendChild(staticOption);
-
-    if (isGSheetLink) {
-        // 2. LOGIKA BARU: Jika dari GSheet Link, tampilkan Cell A, B, C...
-        for (let i = 0; i < dataHeaders.length; i++) {
-            const option = document.createElement('option');
-            // Nilai (value) tetap nama header asli untuk internal linking
-            option.value = dataHeaders[i]; 
-            // Tampilan (textContent) adalah "Cell A", "Cell B", dst.
-            option.textContent = `Cell ${String.fromCharCode(65 + i)}`;
-            dataLinkSelect.appendChild(option);
-        }
-    } else {
-        // 3. LOGIKA LAMA: Jika dari upload file, tampilkan nama header
-        for (const header of dataHeaders) {
-            const option = document.createElement('option');
-            option.value = header;
-            option.textContent = header;
-            dataLinkSelect.appendChild(option);
-        }
+    for (const header of dataHeaders) {
+        const option = document.createElement('option');
+        option.value = header;
+        option.textContent = header;
+        dataLinkSelect.appendChild(option);
     }
 }
-// <-- Akhir dari [MODIFIKASI BESAR] -->
-
 
 // Memperbarui properti teks dari toolbar
 function updateSelectedTextField(property, value) {
@@ -635,7 +616,6 @@ downloadBtn.addEventListener('click', () => {
 // 6. Otomatisasi Massal (BULK)
 // Opsi 1: Upload File
 bulkFileInput.addEventListener('change', (e) => {
-    isGSheetLink = false; // <-- MODIFIKASI: Reset penanda
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -678,17 +658,12 @@ fetchGdocBtn.addEventListener('click', async () => {
     }
     bulkStatusDiv.textContent = "Mengambil data dari link...";
     bulkStatusDiv.style.color = 'blue';
-    isGSheetLink = false; // <-- MODIFIKASI: Reset penanda di awal
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Gagal mengambil data. Status: ${response.status}`);
         const csvContent = await response.text();
-        
-        isGSheetLink = true; // <-- MODIFIKASI: Atur penanda jika BERHASIL
-        
         processNamaList(csvContent, true, null);
     } catch (error) {
-        isGSheetLink = false; // <-- MODIFIKASI: Reset penanda jika GAGAL
         bulkStatusDiv.textContent = `Gagal: ${error.message}. Pastikan link benar dan dipublikasikan sebagai CSV.`;
         bulkStatusDiv.style.color = 'red';
     }
@@ -749,7 +724,7 @@ generateBulkBtn.addEventListener('click', () => {
                 // [PERBAIKAN NAMA FILE]
                 const firstColumnKey = dataHeaders.length > 0 ? dataHeaders[0] : 'sertifikat';
                 const nameForFile = (firstColumnKey !== 'sertifikat' && row[firstColumnKey]) ? row[firstColumnKey] : `sertifikat_${generatedCount + 1}`;
-
+                
                 const titleCaseName = toTitleCase(String(nameForFile));
                 // Hapus karakter ilegal, tapi biarkan spasi dan tanda hubung
                 const cleanedName = titleCaseName.replace(/[\\/*?:"<>|]/g, ''); 
@@ -820,6 +795,7 @@ setupEyedropper();
 addFontBtn.addEventListener('click', handleAddFont);
 updateDataLinkDropdown(); // Panggil saat muat untuk mengisi opsi "Teks Statis"
 
+// <-- TAMBAHKAN BLOK DI BAWAH INI -->
 // Event Listener untuk Simpan/Muat Template
 saveTemplateBtn.addEventListener('click', () => {
     if (textFields.length === 0) {
@@ -879,3 +855,4 @@ loadTemplateInput.addEventListener('change', (e) => {
     };
     reader.readAsText(file);
 });
+// <-- AKHIR BLOK TAMBAHAN -->
