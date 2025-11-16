@@ -1,4 +1,4 @@
-l// JAVASCRIPT untuk fungsionalitas
+// JAVASCRIPT untuk fungsionalitas
 
 // Inisialisasi PDF.js Worker
 if (typeof pdfjsLib !== 'undefined') {
