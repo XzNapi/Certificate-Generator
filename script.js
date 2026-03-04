@@ -1,95 +1,62 @@
-// JAVASCRIPT untuk fungsionalitas
-
-// Inisialisasi PDF.js Worker
+// --- INIT WORKERS ---
 if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 }
 
-// Ambil elemen dari HTML
-const uploadInput = document.getElementById('design-upload');
-const editorSection = document.getElementById('editor-section');
-const bulkSection = document.getElementById('bulk-section');
-const uploadSection = document.getElementById('upload-section');
+// --- VARIABEL GLOBAL ---
 const canvas = document.getElementById('sertifikat-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-// Ambil elemen toolbar
-const textEditControls = document.getElementById('text-edit-controls');
-const addTextBtn = document.getElementById('add-text-btn');
-const deleteTextBtn = document.getElementById('delete-text-btn');
-const dataLinkSelect = document.getElementById('data-link-select');
-const textInput = document.getElementById('text-input');
-
-// Ambil kontainer tombol hapus
-const deleteTextContainer = document.getElementById('delete-text-container');
-
-// Ambil semua elemen tools
-const fontFamilySelect = document.getElementById('font-family');
-const fontSizeInput = document.getElementById('font-size');
-const fontColorInput = document.getElementById('font-color');
-const fontBoldBtn = document.getElementById('font-bold');
-const fontItalicBtn = document.getElementById('font-italic');
-const fontAlignSelect = document.getElementById('font-align');
-const downloadBtn = document.getElementById('download-btn');
-const textTransformSelect = document.getElementById('text-transform');
-
-// Elemen Warna Lanjutan
-const fontColorHexInput = document.getElementById('font-color-hex');
-const colorPickerBtn = document.getElementById('color-picker-btn');
-
-// Elemen Tambah Font
-const addFontBtn = document.getElementById('add-font-btn');
-const newFontNameInput = document.getElementById('new-font-name');
-const newFontFileInput = document.getElementById('new-font-file');
-
-// Elemen Tombol Geser (Nudge)
-const moveUpBtn = document.getElementById('move-up');
-const moveDownBtn = document.getElementById('move-down');
-const moveLeftBtn = document.getElementById('move-left');
-const moveRightBtn = document.getElementById('move-right');
-const NUDGE_AMOUNT = 5;
-
-// Elemen untuk bulk generation
-const bulkFileInput = document.getElementById('bulk-file-upload');
-const gdocLinkInput = document.getElementById('gdoc-link');
-const fetchGdocBtn = document.getElementById('fetch-gdoc-btn');
-const bulkFormatSelect = document.getElementById('bulk-format');
-const generateBulkBtn = document.getElementById('generate-bulk-btn');
-const bulkStatusDiv = document.getElementById('bulk-status');
-const zipCheckbox = document.getElementById('download-as-zip');
-
-// <-- TAMBAHKAN BLOK DI BAWAH INI -->
-// Elemen Simpan/Muat Template
-const saveTemplateBtn = document.getElementById('save-template-btn');
-const loadTemplateBtn = document.getElementById('load-template-btn');
-const loadTemplateInput = document.getElementById('load-template-input');
-// <-- AKHIR BLOK TAMBAHAN -->
-
-// Variabel Global
-let backgroundImage;
+let backgroundImage = null;
 let textFields = [];
+let imageElements = []; // Untuk logo/ttd
 let selectedTextId = null;
+let selectedElementId = null;
 let nextTextId = 0;
+let nextElementId = 0;
 let dataList = [];
 let dataHeaders = [];
+
+// Drag state
 let isDragging = false;
+let dragType = null; // 'text' atau 'image'
 let dragStartOffset = { x: 0, y: 0 };
 
-// --- FUNGSI UTAMA ---
+// --- NAVIGASI SIDEBAR ---
+const menuBtns = document.querySelectorAll('.menu-btn');
+const panels = document.querySelectorAll('.panel');
+menuBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        menuBtns.forEach(b => b.classList.remove('active'));
+        panels.forEach(p => p.classList.add('hidden'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.target).classList.remove('hidden');
+    });
+});
 
-// [BARU] Fungsi untuk mengubah teks menjadi Title Case
-function toTitleCase(str) {
-    if (!str) return "";
-    return String(str).toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
-}
-
+// --- RENDER CANVAS ---
 function redrawCanvas() {
-    if (!backgroundImage || !backgroundImage.src) return;
-
+    if (!backgroundImage) return;
+    
+    // 1. Gambar Background
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
 
-    for (const field of textFields) {
+    // 2. Gambar Elemen Tambahan (Logo/TTD)
+    imageElements.forEach(imgObj => {
+        const w = imgObj.img.width * imgObj.scale;
+        const h = imgObj.img.height * imgObj.scale;
+        ctx.drawImage(imgObj.img, imgObj.x, imgObj.y, w, h);
+        
+        if (imgObj.id === selectedElementId) {
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(imgObj.x, imgObj.y, w, h);
+            ctx.setLineDash([]);
+        }
+    });
+
+    // 3. Gambar Teks
+    textFields.forEach(field => {
         let style = "";
         if (field.isItalic) style += "italic ";
         if (field.isBold) style += "bold ";
@@ -98,8 +65,18 @@ function redrawCanvas() {
         ctx.textAlign = field.align;
         ctx.textBaseline = 'middle';
 
-        const textToDraw = field.dataLink ? `[${field.dataLink}]` : field.text;
-        updateTextFieldBoundingBox(field, textToDraw);
+        let textToDraw = field.dataLink ? `[${field.dataLink}]` : field.text;
+        
+        // Ukur Bounding Box
+        const metrics = ctx.measureText(textToDraw);
+        const height = (metrics.actualBoundingBoxAscent || 0) + (metrics.actualBoundingBoxDescent || 0);
+        field.boundingBox = {
+            width: metrics.width + 20,
+            height: height + 20,
+            y: field.y - (height / 2) - 10,
+            x: field.align === 'center' ? field.x - (metrics.width / 2) - 10 : (field.align === 'left' ? field.x - 10 : field.x - metrics.width - 10)
+        };
+
         ctx.fillText(textToDraw, field.x, field.y);
 
         if (field.id === selectedTextId) {
@@ -108,751 +85,353 @@ function redrawCanvas() {
             ctx.strokeRect(field.boundingBox.x, field.boundingBox.y, field.boundingBox.width, field.boundingBox.height);
             ctx.setLineDash([]);
         }
-    }
-}
-
-function updateTextFieldBoundingBox(field, textToDraw) {
-    let style = "";
-    if (field.isItalic) style += "italic ";
-    if (field.isBold) style += "bold ";
-    ctx.font = `${style}${field.size}px "${field.family}"`;
-    ctx.textAlign = field.align;
-    ctx.textBaseline = 'middle';
-
-    const textMetrics = ctx.measureText(textToDraw);
-    const actualHeight = (textMetrics.actualBoundingBoxAscent || 0) + (textMetrics.actualBoundingBoxDescent || 0);
-    const actualWidth = textMetrics.width;
-    const paddingX = 10;
-    const paddingY = 10;
-
-    field.boundingBox = field.boundingBox || {};
-    field.boundingBox.width = actualWidth + (paddingX * 2);
-    field.boundingBox.height = actualHeight + (paddingY * 2);
-
-    if (field.align === 'center') {
-        field.boundingBox.x = field.x - (actualWidth / 2) - paddingX;
-    } else if (field.align === 'left') {
-        field.boundingBox.x = field.x - paddingX;
-    } else {
-        field.boundingBox.x = field.x - actualWidth - paddingX;
-    }
-    field.boundingBox.y = field.y - (actualHeight / 2) - paddingY;
-}
-
-// [PEROMBAKAN BESAR] Memproses file Excel/CSV/GSheet
-function processNamaList(list, isGSheet = false, explicitHeaders = null) {
-    
-    dataList = [];
-    dataHeaders = [];
-
-    // --- 1. Parsing Data ---
-    if (isGSheet) {
-        const lines = list.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        if (lines.length < 2) { // Butuh setidaknya 1 header dan 1 baris data
-            bulkStatusDiv.textContent = "File CSV kosong atau tidak valid (butuh header dan data).";
-            bulkStatusDiv.style.color = 'red';
-            return;
-        }
-        const headers = lines[0].split(',').map(h => h.trim());
-        dataHeaders = headers;
-        
-        for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',');
-            let obj = {};
-            for (let j = 0; j < headers.length; j++) {
-                obj[headers[j]] = values[j] ? values[j].trim() : '';
-            }
-            dataList.push(obj);
-        }
-    } else {
-        dataList = list;
-        dataHeaders = explicitHeaders || (dataList.length > 0 ? Object.keys(dataList[0]) : []);
-    }
-    
-    if (dataList.length === 0) {
-        bulkStatusDiv.textContent = "Tidak ada baris data yang ditemukan (file mungkin hanya berisi header).";
-        bulkStatusDiv.style.color = 'red';
-        return;
-    }
-
-    // --- 2. Deteksi Duplikat (Case-Insensitive) ---
-    const allDuplicatesMap = new Map();
-
-    for (const header of dataHeaders) {
-        const valueCounts = new Map(); 
-
-        for (const row of dataList) {
-            const originalValue = row[header];
-            if (originalValue === null || originalValue === undefined) continue;
-            
-            const standardizedValue = String(originalValue).toLowerCase().trim();
-            if (standardizedValue === "") continue; 
-
-            if (valueCounts.has(standardizedValue)) {
-                valueCounts.get(standardizedValue).count++;
-            } else {
-                valueCounts.set(standardizedValue, { count: 1, originalValue: originalValue });
-            }
-        }
-
-        const duplicates = new Map();
-        for (const [stdVal, data] of valueCounts.entries()) {
-            if (data.count > 1) {
-                duplicates.set(data.originalValue, data.count - 1); 
-            }
-        }
-        
-        if (duplicates.size > 0) {
-            allDuplicatesMap.set(header, duplicates);
-        }
-    }
-
-    // --- 3. Buat Pesan Status ---
-    let mainStatusMessage = "";
-    let mainStatusColor = "red";
-
-    if (dataList.length > 0 && backgroundImage && backgroundImage.src) {
-        mainStatusMessage = `Siap menghasilkan ${dataList.length} sertifikat.`;
-        mainStatusColor = 'green';
-        generateBulkBtn.disabled = false;
-    } else if (dataList.length > 0) {
-        mainStatusMessage = `Data terbaca (${dataList.length} baris, ${dataHeaders.length} kolom). Silakan upload desain.`;
-        mainStatusColor = 'blue';
-    } else {
-        mainStatusMessage = `Tidak ada data valid ditemukan.`;
-        generateBulkBtn.disabled = true;
-    }
-
-    // --- 4. Buat Peringatan Duplikat ---
-    let warningMessage = "";
-    if (allDuplicatesMap.size > 0) {
-        const headerToIndex = new Map(dataHeaders.map((h, i) => [h, String.fromCharCode(65 + i)]));
-        
-        for (const [header, duplicatesMap] of allDuplicatesMap.entries()) {
-            const cellLetter = headerToIndex.get(header) || header;
-            const duplicateValues = [...duplicatesMap.keys()].join(', '); 
-            const totalDuplicateCount = [...duplicatesMap.values()].reduce((a, b) => a + b, 0);
-
-            warningMessage += `<br><strong style="color: #e67e22;">Peringatan !!</strong> Ditemukan ${totalDuplicateCount} duplikasi pada cell <strong>${cellLetter}</strong> : ${duplicateValues}.`;
-        }
-    }
-    
-    // 5. Tampilkan Pesan
-    bulkStatusDiv.innerHTML = mainStatusMessage + warningMessage;
-    bulkStatusDiv.style.color = mainStatusColor;
-
-    // 6. Update UI Lainnya
-    updateDataLinkDropdown();
-    if (textFields.length === 0 && dataHeaders.length > 0) {
-        addNewTextField(dataHeaders[0]); 
-    } else if (textFields.length === 0) {
-        addNewTextField();
-    }
-}
-
-// Membuat bidang teks baru
-function addNewTextField(linkToData = null) {
-    const defaultText = linkToData ? `[${linkToData}]` : "Teks Baru";
-    const newField = {
-        id: nextTextId++,
-        text: defaultText,
-        dataLink: linkToData,
-        x: canvas.width / 2,
-        y: (canvas.height / 2) + (textFields.length * 50),
-        size: 50,
-        family: 'Times New Roman',
-        color: '#000000',
-        isBold: false,
-        isItalic: false,
-        align: 'center',
-        transform: 'none', 
-        boundingBox: {}
-    };
-    textFields.push(newField);
-    selectTextField(newField.id);
-}
-
-// Fungsi untuk memilih teks
-function selectTextField(id) {
-    selectedTextId = id;
-    if (id === null) {
-        textEditControls.classList.add('hidden');
-        deleteTextContainer.classList.add('invisible');
-    } else {
-        textEditControls.classList.remove('hidden');
-        deleteTextContainer.classList.remove('invisible');
-        updateToolbarForSelected();
-    }
-    redrawCanvas();
-}
-
-// Mengisi toolbar saat teks dipilih
-function updateToolbarForSelected() {
-    const field = textFields.find(t => t.id === selectedTextId);
-    if (!field) return;
-
-    fontFamilySelect.value = field.family;
-    fontSizeInput.value = field.size;
-    fontColorInput.value = field.color;
-    fontColorHexInput.value = field.color;
-    fontBoldBtn.classList.toggle('active', field.isBold);
-    fontItalicBtn.classList.toggle('active', field.isItalic);
-    fontAlignSelect.value = field.align;
-    textTransformSelect.value = field.transform || 'none';
-
-    if (field.dataLink) {
-        dataLinkSelect.value = field.dataLink;
-        textInput.value = `[${field.dataLink}]`;
-        textInput.disabled = true;
-    } else {
-        dataLinkSelect.value = "STATIC_TEXT";
-        textInput.value = field.text;
-        textInput.disabled = false;
-    }
-}
-
-// Mengisi dropdown "Link Data"
-function updateDataLinkDropdown() {
-    dataLinkSelect.innerHTML = '';
-    const staticOption = document.createElement('option');
-    staticOption.value = "STATIC_TEXT";
-    staticOption.textContent = "Teks Statis (Tidak Di-link)";
-    dataLinkSelect.appendChild(staticOption);
-    for (const header of dataHeaders) {
-        const option = document.createElement('option');
-        option.value = header;
-        option.textContent = header;
-        dataLinkSelect.appendChild(option);
-    }
-}
-
-// Memperbarui properti teks dari toolbar
-function updateSelectedTextField(property, value) {
-    const field = textFields.find(t => t.id === selectedTextId);
-    if (!field) return;
-
-    field[property] = value;
-    if (property === 'dataLink') {
-        if (value === "STATIC_TEXT") {
-            field.dataLink = null;
-            field.text = "Teks Statis";
-        } else {
-            field.dataLink = value;
-            field.text = `[${value}]`;
-        }
-        updateToolbarForSelected();
-    }
-    if (property === 'text') {
-        field.dataLink = null;
-    }
-    redrawCanvas();
-}
-
-// --- FUNGSI TOOLS LAINNYA ---
-function setupEyedropper() {
-    if (!('EyeDropper' in window)) {
-        console.warn("EyeDropper API tidak didukung. Tombol disembunyikan.");
-        colorPickerBtn.style.display = 'none';
-        return;
-    }
-    colorPickerBtn.addEventListener('click', async () => {
-        try {
-            const eyeDropper = new EyeDropper();
-            const result = await eyeDropper.open();
-            fontColorInput.value = result.sRGBHex;
-            fontColorHexInput.value = result.sRGBHex;
-            updateSelectedTextField('color', result.sRGBHex);
-        } catch (e) {
-            console.log("Eyedropper dibatalkan.");
-        }
     });
 }
 
-function handleAddFont() {
-    const name = newFontNameInput.value.trim();
-    const file = newFontFileInput.files[0];
-    if (!name || !file) {
-        alert("Harap isi Nama Font dan pilih File Font (.ttf, .otf, .woff).");
-        return;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const fontDataUrl = event.target.result;
-        const newFont = new FontFace(name, `url(${fontDataUrl})`);
-        newFont.load().then((loadedFont) => {
-            document.fonts.add(loadedFont);
-            const option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            fontFamilySelect.appendChild(option);
-            fontFamilySelect.value = name;
-            if (selectedTextId !== null) {
-                updateSelectedTextField('family', name);
-            }
-            newFontNameInput.value = '';
-            newFontFileInput.value = '';
-            alert(`Font '${name}' berhasil ditambahkan!`);
-        }).catch((error) => {
-            alert(`Gagal memuat file font: ${error.message}`);
-        });
-    };
-    reader.onerror = () => {
-        alert("Gagal membaca file. File mungkin rusak.");
-    };
-    reader.readAsDataURL(file);
-}
-
+// --- FUNGSI MOUSE (DRAG & DROP) ---
 function getMousePos(e) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY
-    };
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
 }
 
-// --- EVENT LISTENERS ---
+canvas.addEventListener('mousedown', (e) => {
+    if (!backgroundImage) return;
+    const pos = getMousePos(e);
+    
+    // Cek klik teks dulu (Prioritas atas)
+    let clickedText = textFields.slice().reverse().find(f => 
+        pos.x >= f.boundingBox.x && pos.x <= f.boundingBox.x + f.boundingBox.width &&
+        pos.y >= f.boundingBox.y && pos.y <= f.boundingBox.y + f.boundingBox.height
+    );
 
-// 1. Upload Desain
-uploadInput.addEventListener('change', (e) => {
+    // Cek klik gambar jika teks tidak diklik
+    let clickedImg = null;
+    if (!clickedText) {
+        clickedImg = imageElements.slice().reverse().find(img => {
+            const w = img.img.width * img.scale;
+            const h = img.img.height * img.scale;
+            return pos.x >= img.x && pos.x <= img.x + w && pos.y >= img.y && pos.y <= img.y + h;
+        });
+    }
+
+    if (clickedText) {
+        selectItem('text', clickedText.id);
+        isDragging = true; dragType = 'text';
+        dragStartOffset = { x: pos.x - clickedText.x, y: pos.y - clickedText.y };
+    } else if (clickedImg) {
+        selectItem('image', clickedImg.id);
+        isDragging = true; dragType = 'image';
+        dragStartOffset = { x: pos.x - clickedImg.x, y: pos.y - clickedImg.y };
+    } else {
+        selectItem(null, null);
+    }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const pos = getMousePos(e);
+    if (dragType === 'text') {
+        const field = textFields.find(t => t.id === selectedTextId);
+        if (field) { field.x = pos.x - dragStartOffset.x; field.y = pos.y - dragStartOffset.y; }
+    } else if (dragType === 'image') {
+        const img = imageElements.find(i => i.id === selectedElementId);
+        if (img) { img.x = pos.x - dragStartOffset.x; img.y = pos.y - dragStartOffset.y; }
+    }
+    redrawCanvas();
+});
+
+window.addEventListener('mouseup', () => { isDragging = false; });
+
+// --- MANAJEMEN SELEKSI UI ---
+function selectItem(type, id) {
+    const textControls = document.getElementById('text-edit-controls');
+    const elemControls = document.getElementById('element-edit-controls');
+    const indicator = document.getElementById('selection-indicator');
+
+    selectedTextId = type === 'text' ? id : null;
+    selectedElementId = type === 'image' ? id : null;
+
+    if (type === 'text') {
+        textControls.classList.remove('hidden');
+        elemControls.classList.add('hidden');
+        indicator.textContent = "✏️ Teks Terpilih (Pindah ke Tab Teks untuk edit)";
+        updateTextToolbar();
+    } else if (type === 'image') {
+        textControls.classList.add('hidden');
+        elemControls.classList.remove('hidden');
+        indicator.textContent = "🖼️ Gambar Terpilih (Pindah ke Tab Elemen untuk edit)";
+        const img = imageElements.find(i => i.id === id);
+        if (img) document.getElementById('element-scale').value = img.scale;
+    } else {
+        textControls.classList.add('hidden');
+        elemControls.classList.add('hidden');
+        indicator.textContent = "Pilih teks/gambar di canvas untuk mengedit.";
+    }
+    redrawCanvas();
+}
+
+// --- FITUR DESAIN (BACKGROUND) ---
+document.getElementById('design-upload').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const loadBackgroundImage = (dataUrl) => {
+    
+    const loadImg = (url) => {
         const img = new Image();
         img.onload = () => {
-            backgroundImage = img; 
-            canvas.width = backgroundImage.width;
-            canvas.height = backgroundImage.height;
-            if (textFields.length === 0) {
-                addNewTextField(dataHeaders.length > 0 ? dataHeaders[0] : null);
-            }
+            backgroundImage = img;
+            canvas.width = img.width; canvas.height = img.height;
             redrawCanvas();
-            editorSection.style.display = 'block';
-            bulkSection.style.display = 'block';
-            uploadSection.style.display = 'none';
-            if (dataList.length > 0) {
-                generateBulkBtn.disabled = false;
-            }
+            document.getElementById('generate-bulk-btn').disabled = dataList.length === 0;
         };
-        img.onerror = () => {
-            alert("Gagal memuat data gambar. File mungkin rusak.");
-            uploadInput.value = '';
-        };
-        img.src = dataUrl;
+        img.src = url;
     };
-    if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            loadBackgroundImage(event.target.result);
-        };
-        reader.readAsDataURL(file);
-    } 
-    else if (file.type === 'application/pdf') {
-        if (typeof pdfjsLib === 'undefined') {
-            alert("Gagal memuat library PDF. Periksa koneksi internet Anda.");
-            return;
-        }
+
+    if (file.type === 'application/pdf') {
         const reader = new FileReader();
         reader.onload = async (event) => {
-            try {
-                const arrayBuffer = event.target.result;
-                const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                const page = await pdfDoc.getPage(1);
-                const scale = 3.0;
-                const viewport = page.getViewport({ scale: scale });
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = viewport.width;
-                tempCanvas.height = viewport.height;
-                await page.render({
-                    canvasContext: tempCtx,
-                    viewport: viewport
-                }).promise;
-                const dataUrl = tempCanvas.toDataURL('image/png');
-                loadBackgroundImage(dataUrl);
-            } catch (error) {
-                alert(`Gagal membaca file PDF: ${error.message}`);
-                uploadInput.value = '';
-            }
+            const pdfDoc = await pdfjsLib.getDocument({ data: event.target.result }).promise;
+            const page = await pdfDoc.getPage(1);
+            const viewport = page.getViewport({ scale: 3.0 });
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = viewport.width; tempCanvas.height = viewport.height;
+            await page.render({ canvasContext: tempCanvas.getContext('2d'), viewport: viewport }).promise;
+            loadImg(tempCanvas.toDataURL());
         };
         reader.readAsArrayBuffer(file);
-    } 
-    else {
-        alert("Format file tidak didukung. Harap unggah .png, .jpeg, atau .pdf");
-        uploadInput.value = '';
-    }
-});
-
-// 2. Event Listener untuk Toolbar
-addTextBtn.addEventListener('click', () => addNewTextField());
-deleteTextBtn.addEventListener('click', () => {
-    if (selectedTextId === null) return;
-    if (confirm("Apakah Anda yakin ingin menghapus bidang teks ini?")) {
-        textFields = textFields.filter(t => t.id !== selectedTextId);
-        selectTextField(null);
-    }
-});
-dataLinkSelect.addEventListener('change', () => {
-    updateSelectedTextField('dataLink', dataLinkSelect.value);
-});
-textInput.addEventListener('change', () => {
-    updateSelectedTextField('text', textInput.value);
-});
-fontFamilySelect.addEventListener('change', () => {
-    updateSelectedTextField('family', fontFamilySelect.value);
-});
-fontSizeInput.addEventListener('change', () => {
-    updateSelectedTextField('size', fontSizeInput.value);
-});
-fontColorInput.addEventListener('input', () => {
-    fontColorHexInput.value = fontColorInput.value;
-    updateSelectedTextField('color', fontColorInput.value);
-});
-fontColorHexInput.addEventListener('change', () => {
-    let value = fontColorHexInput.value;
-    if (value.length === 6 && !value.startsWith('#')) value = '#' + value;
-    if (/^#[0-9A-F]{6}$/i.test(value) || /^#[0-9A-F]{3}$/i.test(value)) {
-        fontColorInput.value = value;
-        fontColorHexInput.value = value;
-        updateSelectedTextField('color', value);
     } else {
-        fontColorHexInput.value = fontColorInput.value;
+        loadImg(URL.createObjectURL(file));
     }
 });
-fontBoldBtn.addEventListener('click', () => {
-    const field = textFields.find(t => t.id === selectedTextId);
-    if (!field) return;
-    field.isBold = !field.isBold;
-    fontBoldBtn.classList.toggle('active', field.isBold);
-    redrawCanvas();
-});
-fontItalicBtn.addEventListener('click', () => {
-    const field = textFields.find(t => t.id === selectedTextId);
-    if (!field) return;
-    field.isItalic = !field.isItalic;
-    fontItalicBtn.classList.toggle('active', field.isItalic);
-    redrawCanvas();
-});
-fontAlignSelect.addEventListener('change', () => {
-    updateSelectedTextField('align', fontAlignSelect.value);
-});
-textTransformSelect.addEventListener('change', () => {
-    updateSelectedTextField('transform', textTransformSelect.value);
+
+// --- FITUR TEKS ---
+document.getElementById('add-text-btn').addEventListener('click', () => {
+    const newField = {
+        id: nextTextId++, text: "Teks Baru", dataLink: null,
+        x: canvas.width / 2, y: canvas.height / 2, size: 50,
+        family: 'Times New Roman', color: '#000000', align: 'center',
+        isBold: false, isItalic: false, transform: 'none', boundingBox: {}
+    };
+    textFields.push(newField);
+    selectItem('text', newField.id);
 });
 
-// 3. Tombol Geser (Nudge)
-moveUpBtn.addEventListener('click', () => { 
-    const f = textFields.find(t => t.id === selectedTextId); if (f) f.y -= NUDGE_AMOUNT; redrawCanvas(); 
-});
-moveDownBtn.addEventListener('click', () => {
-    const f = textFields.find(t => t.id === selectedTextId); if (f) f.y += NUDGE_AMOUNT; redrawCanvas();
-});
-moveLeftBtn.addEventListener('click', () => {
-    const f = textFields.find(t => t.id === selectedTextId); if (f) f.x -= NUDGE_AMOUNT; redrawCanvas();
-});
-moveRightBtn.addEventListener('click', () => {
-    const f = textFields.find(t => t.id === selectedTextId); if (f) f.x += NUDGE_AMOUNT; redrawCanvas();
+document.getElementById('delete-text-btn').addEventListener('click', () => {
+    textFields = textFields.filter(t => t.id !== selectedTextId);
+    selectItem(null, null);
 });
 
-// 4. Drag-and-Drop Canvas
-canvas.addEventListener('mousedown', (e) => {
-    if (!backgroundImage || !backgroundImage.src) return;
-    const pos = getMousePos(e);
-    let clickedField = null;
-    for (let i = textFields.length - 1; i >= 0; i--) {
-        const field = textFields[i];
-        const box = field.boundingBox;
-        if (pos.x >= box.x && pos.x <= box.x + box.width &&
-            pos.y >= box.y && pos.y <= box.y + box.height) {
-            clickedField = field;
-            break;
-        }
+function updateTextToolbar() {
+    const field = textFields.find(t => t.id === selectedTextId);
+    if (!field) return;
+    document.getElementById('font-family').value = field.family;
+    document.getElementById('font-size').value = field.size;
+    document.getElementById('font-color').value = field.color;
+    document.getElementById('font-color-hex').value = field.color;
+    document.getElementById('font-align').value = field.align;
+    document.getElementById('text-transform').value = field.transform;
+    document.getElementById('font-bold').classList.toggle('active', field.isBold);
+    document.getElementById('font-italic').classList.toggle('active', field.isItalic);
+    
+    const dataLinkEl = document.getElementById('data-link-select');
+    const textInputEl = document.getElementById('text-input');
+    dataLinkEl.value = field.dataLink || "STATIC";
+    textInputEl.value = field.dataLink ? `[${field.dataLink}]` : field.text;
+    textInputEl.disabled = !!field.dataLink;
+}
+
+// Binding event listener dari HTML ke properti teks
+const bindProp = (id, prop) => document.getElementById(id).addEventListener('change', (e) => {
+    const field = textFields.find(t => t.id === selectedTextId);
+    if (field) { field[prop] = e.target.value; redrawCanvas(); }
+});
+bindProp('font-family', 'family');
+bindProp('font-size', 'size');
+bindProp('font-align', 'align');
+bindProp('text-transform', 'transform');
+
+document.getElementById('text-input').addEventListener('input', (e) => {
+    const field = textFields.find(t => t.id === selectedTextId);
+    if (field && !field.dataLink) { field.text = e.target.value; redrawCanvas(); }
+});
+document.getElementById('font-color').addEventListener('input', (e) => {
+    const field = textFields.find(t => t.id === selectedTextId);
+    if (field) { field.color = e.target.value; document.getElementById('font-color-hex').value = e.target.value; redrawCanvas(); }
+});
+document.getElementById('font-bold').addEventListener('click', () => {
+    const field = textFields.find(t => t.id === selectedTextId);
+    if (field) { field.isBold = !field.isBold; updateTextToolbar(); redrawCanvas(); }
+});
+document.getElementById('font-italic').addEventListener('click', () => {
+    const field = textFields.find(t => t.id === selectedTextId);
+    if (field) { field.isItalic = !field.isItalic; updateTextToolbar(); redrawCanvas(); }
+});
+document.getElementById('data-link-select').addEventListener('change', (e) => {
+    const field = textFields.find(t => t.id === selectedTextId);
+    if (field) {
+        field.dataLink = e.target.value === "STATIC" ? null : e.target.value;
+        updateTextToolbar(); redrawCanvas();
     }
-    if (clickedField) {
-        isDragging = true;
-        selectTextField(clickedField.id);
-        canvas.style.cursor = 'move';
-        dragStartOffset.x = pos.x - clickedField.x;
-        dragStartOffset.y = pos.y - clickedField.y;
-    } else {
-        isDragging = false;
-        selectTextField(null);
-        canvas.style.cursor = 'crosshair';
+});
+
+// Custom Font
+document.getElementById('add-font-btn').addEventListener('click', () => {
+    const name = document.getElementById('new-font-name').value;
+    const file = document.getElementById('new-font-file').files[0];
+    if(name && file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const font = new FontFace(name, `url(${e.target.result})`);
+            font.load().then(f => {
+                document.fonts.add(f);
+                document.getElementById('font-family').insertAdjacentHTML('beforeend', `<option value="${name}">${name}</option>`);
+                alert("Font berhasil ditambah!");
+            });
+        };
+        reader.readAsDataURL(file);
     }
 });
-canvas.addEventListener('mousemove', (e) => {
-    if (!isDragging || selectedTextId === null) return;
-    const field = textFields.find(t => t.id === selectedTextId);
-    if (!field) return;
-    const pos = getMousePos(e);
-    field.x = pos.x - dragStartOffset.x;
-    field.y = pos.y - dragStartOffset.y;
-    redrawCanvas();
+
+// --- FITUR ELEMEN (GAMBAR) ---
+document.getElementById('element-upload').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file || !backgroundImage) { alert('Upload background desain dulu!'); return; }
+    const img = new Image();
+    img.onload = () => {
+        const newElem = { id: nextElementId++, img: img, x: 50, y: 50, scale: 1 };
+        imageElements.push(newElem);
+        selectItem('image', newElem.id);
+    };
+    img.src = URL.createObjectURL(file);
 });
-canvas.addEventListener('mouseup', () => {
-    isDragging = false;
-    canvas.style.cursor = 'crosshair';
+document.getElementById('element-scale').addEventListener('input', (e) => {
+    const img = imageElements.find(i => i.id === selectedElementId);
+    if (img) { img.scale = parseFloat(e.target.value); redrawCanvas(); }
 });
-canvas.addEventListener('mouseout', () => {
-    isDragging = false;
-    canvas.style.cursor = 'crosshair';
+document.getElementById('delete-element-btn').addEventListener('click', () => {
+    imageElements = imageElements.filter(i => i.id !== selectedElementId);
+    selectItem(null, null);
 });
 
-// 5. Download Satuan
-downloadBtn.addEventListener('click', () => {
-    if (!backgroundImage || !backgroundImage.src) { alert("Mohon upload desain sertifikat terlebih dahulu."); return; }
-    const previouslySelected = selectedTextId;
-    selectTextField(null);
-    redrawCanvas();
-    const link = document.createElement('a');
-    const namaFile = 'Sertifikat_Preview.png';
-    link.download = namaFile;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    selectTextField(previouslySelected);
-});
+// --- FITUR DATA MASSAL (EXCEL/CSV) ---
+function updateDataLinkDropdown() {
+    const select = document.getElementById('data-link-select');
+    select.innerHTML = '<option value="STATIC">Teks Statis</option>';
+    dataHeaders.forEach(h => select.insertAdjacentHTML('beforeend', `<option value="${h}">${h}</option>`));
+}
 
-// 6. Otomatisasi Massal (BULK)
-// Opsi 1: Upload File
-bulkFileInput.addEventListener('change', (e) => {
+function processData(data) {
+    if(data.length > 0) {
+        dataList = data; dataHeaders = Object.keys(data[0]);
+        updateDataLinkDropdown();
+        document.getElementById('bulk-status').textContent = `Terbaca: ${data.length} baris.`;
+        if (backgroundImage) document.getElementById('generate-bulk-btn').disabled = false;
+    }
+}
+
+document.getElementById('bulk-file-upload').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    const fileExt = file.name.split('.').pop().toLowerCase();
-    if (fileExt === 'csv') {
-        reader.onload = (event) => {
-            processNamaList(event.target.result, true, null);
+    if (file.name.endsWith('.csv')) {
+        reader.onload = ev => {
+            const rows = ev.target.result.split('\n').map(r=>r.split(','));
+            const hdrs = rows[0].map(h=>h.trim());
+            const json = rows.slice(1).filter(r=>r.length>1).map(r => {
+                let obj={}; hdrs.forEach((h,i)=> obj[h] = r[i]?.trim()); return obj;
+            });
+            processData(json);
         };
         reader.readAsText(file);
-    } else if (fileExt === 'xls' || fileExt === 'xlsx') {
-        reader.onload = (event) => {
-            try {
-                const data = new Uint8Array(event.target.result);
-                if (typeof XLSX === 'undefined') throw new Error("Library SheetJS (XLSX) tidak termuat.");
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const headerArray = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0];
-                const json = XLSX.utils.sheet_to_json(worksheet); 
-                processNamaList(json, false, headerArray); 
-            } catch (error) {
-                bulkStatusDiv.textContent = `Gagal membaca file Excel: ${error.message}`;
-                bulkStatusDiv.style.color = 'red';
-                generateBulkBtn.disabled = true;
-            }
+    } else {
+        reader.onload = ev => {
+            const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+            processData(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]));
         };
         reader.readAsArrayBuffer(file);
-    } else {
-        bulkStatusDiv.textContent = "Format file tidak didukung. Harap gunakan .csv, .xls, or .xlsx";
-        bulkStatusDiv.style.color = 'red';
-    }
-});
-// Opsi 2: Fetch Google Sheet
-fetchGdocBtn.addEventListener('click', async () => {
-    const url = gdocLinkInput.value.trim();
-    if (!url) {
-        bulkStatusDiv.textContent = "Harap masukkan URL Google Sheet.";
-        bulkStatusDiv.style.color = 'red';
-        return;
-    }
-    bulkStatusDiv.textContent = "Mengambil data dari link...";
-    bulkStatusDiv.style.color = 'blue';
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Gagal mengambil data. Status: ${response.status}`);
-        const csvContent = await response.text();
-        processNamaList(csvContent, true, null);
-    } catch (error) {
-        bulkStatusDiv.textContent = `Gagal: ${error.message}. Pastikan link benar dan dipublikasikan sebagai CSV.`;
-        bulkStatusDiv.style.color = 'red';
     }
 });
 
-// Tombol Generate Massal
-generateBulkBtn.addEventListener('click', () => {
-    if (dataList.length === 0 || !backgroundImage || !backgroundImage.src) {
-        alert("Mohon siapkan desain sertifikat dan daftar nama terlebih dahulu.");
-        return;
-    }
-    generateBulkBtn.disabled = true;
-    bulkStatusDiv.textContent = "Memulai generasi massal...";
-    bulkStatusDiv.style.color = 'blue';
-    const previouslySelected = selectedTextId;
-    selectTextField(null);
-    setTimeout(async () => {
-        try {
-            const format = bulkFormatSelect.value;
-            const asZip = zipCheckbox.checked;
-            let jsPDF;
-            let zip;
-            if (format === 'pdf') {
-                if (typeof window.jspdf === 'undefined') throw new Error("Library jsPDF tidak termuat.");
-                jsPDF = window.jspdf.jsPDF;
-            }
-            if (asZip) {
-                if (typeof JSZip === 'undefined') throw new Error("Library JSZip tidak termuat.");
-                zip = new JSZip();
-            }
-            let generatedCount = 0;
-            for (const row of dataList) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
-                for (const field of textFields) {
-                    let style = "";
-                    if (field.isItalic) style += "italic ";
-                    if (field.isBold) style += "bold ";
-                    ctx.font = `${style}${field.size}px "${field.family}"`;
-                    ctx.fillStyle = field.color;
-                    ctx.textAlign = field.align;
-                    ctx.textBaseline = 'middle';
-                    
-                    // [PERBAIKAN] Terapkan Transform
-                    let textToDraw = field.dataLink ? (row[field.dataLink] || '') : field.text;
-                    if (field.dataLink) {
-                        if (field.transform === 'titlecase') {
-                            textToDraw = toTitleCase(textToDraw);
-                        } else if (field.transform === 'uppercase') {
-                            textToDraw = String(textToDraw).toUpperCase();
-                        }
-                    }
-                    
-                    ctx.fillText(textToDraw, field.x, field.y);
-                }
-                await new Promise(resolve => setTimeout(resolve, 10));
-                
-                // [PERBAIKAN NAMA FILE]
-                const firstColumnKey = dataHeaders.length > 0 ? dataHeaders[0] : 'sertifikat';
-                const nameForFile = (firstColumnKey !== 'sertifikat' && row[firstColumnKey]) ? row[firstColumnKey] : `sertifikat_${generatedCount + 1}`;
-                
-                const titleCaseName = toTitleCase(String(nameForFile));
-                // Hapus karakter ilegal, tapi biarkan spasi dan tanda hubung
-                const cleanedName = titleCaseName.replace(/[\\/*?:"<>|]/g, ''); 
-                const fileName = `S - ${cleanedName}`; // Format baru
-                
-                if (asZip) {
-                    if (format === 'png') {
-                        const dataURL = canvas.toDataURL('image/png');
-                        const base64Data = dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
-                        zip.file(`${fileName}.png`, base64Data, { base64: true });
-                    } 
-                    else if (format === 'pdf') {
-                        const orientation = canvas.width > canvas.height ? 'l' : 'p';
-                        const doc = new jsPDF({
-                            orientation: orientation, unit: 'px', format: [canvas.width, canvas.height]
-                        });
-                        doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
-                        const pdfBlob = doc.output('blob');
-                        zip.file(`${fileName}.pdf`, pdfBlob);
-                    }
-                } else {
-                    if (format === 'png') {
-                        const dataURL = canvas.toDataURL('image/png');
-                        const link = document.createElement('a');
-                        link.download = `${fileName}.png`;
-                        link.href = dataURL;
-                        link.click();
-                    } 
-                    else if (format === 'pdf') {
-                        const orientation = canvas.width > canvas.height ? 'l' : 'p';
-                        const doc = new jsPDF({
-                            orientation: orientation, unit: 'px', format: [canvas.width, canvas.height]
-                        });
-                        doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
-                        doc.save(`${fileName}.pdf`);
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                }
-                generatedCount++;
-                const statusMsg = asZip ? `Memproses ${generatedCount}/${dataList.length} ke ZIP...` : `Mengunduh ${generatedCount}/${dataList.length}...`;
-                bulkStatusDiv.textContent = statusMsg;
-            }
-            if (asZip) {
-                bulkStatusDiv.textContent = "Membuat file .zip... (mohon tunggu)";
-                const content = await zip.generateAsync({ type: "blob" });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(content);
-                link.download = 'Sertifikat_Massal.zip';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(link.href);
-            }
-            bulkStatusDiv.textContent = `Selesai! ${generatedCount} sertifikat telah diproses.`;
-            bulkStatusDiv.style.color = 'green';
-        } catch (error) {
-            bulkStatusDiv.textContent = `Gagal: ${error.message}`;
-            bulkStatusDiv.style.color = 'red';
-        } finally {
-            generateBulkBtn.disabled = false;
-            selectTextField(previouslySelected);
-        }
-    }, 10);
-});
-
-// --- PANGGIL FUNGSI SAAT SCRIPT DIMUAT ---
-setupEyedropper();
-addFontBtn.addEventListener('click', handleAddFont);
-updateDataLinkDropdown(); // Panggil saat muat untuk mengisi opsi "Teks Statis"
-
-// <-- TAMBAHKAN BLOK DI BAWAH INI -->
-// Event Listener untuk Simpan/Muat Template
-saveTemplateBtn.addEventListener('click', () => {
-    if (textFields.length === 0) {
-        alert("Tidak ada bidang teks untuk disimpan. Tambahkan teks terlebih dahulu.");
-        return;
-    }
-    const dataStr = JSON.stringify(textFields, null, 2); // 'null, 2' untuk format cantik
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
+// --- TOMBOL DOWNLOAD SATUAN ---
+document.getElementById('download-btn').addEventListener('click', () => {
+    if (!backgroundImage) return;
+    selectItem(null, null); // hilangkan kotak seleksi
     const link = document.createElement('a');
-    link.download = 'sertifikat_template.json';
-    link.href = url;
+    link.download = 'Preview.png';
+    link.href = canvas.toDataURL();
     link.click();
-    URL.revokeObjectURL(url);
 });
 
-loadTemplateBtn.addEventListener('click', () => {
-    // Memicu input file tersembunyi
-    loadTemplateInput.click();
-});
+// --- GENERATE MASSAL ---
+const toTitleCase = str => String(str).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
-loadTemplateInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!backgroundImage) {
-        alert("Harap unggah desain sertifikat terlebih dahulu sebelum memuat template.");
-        loadTemplateInput.value = ''; // Reset input
-        return;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        try {
-            const parsedJson = JSON.parse(event.target.result);
-            if (!Array.isArray(parsedJson)) {
-                throw new Error("File template tidak valid.");
-            }
-            textFields = parsedJson;
-            // Set nextTextId agar tidak bentrok
-            if (textFields.length > 0) {
-                const maxId = Math.max(...textFields.map(f => f.id));
-                nextTextId = maxId + 1;
+document.getElementById('generate-bulk-btn').addEventListener('click', async () => {
+    selectItem(null, null);
+    const format = document.getElementById('bulk-format').value;
+    const asZip = document.getElementById('download-as-zip').checked;
+    const statDiv = document.getElementById('bulk-status');
+    let zip = asZip ? new JSZip() : null;
+    let jsPDF = format === 'pdf' ? window.jspdf.jsPDF : null;
+
+    statDiv.textContent = "Memproses...";
+    
+    for (let i = 0; i < dataList.length; i++) {
+        const row = dataList[i];
+        
+        // Render Canvas untuk baris ini
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+        imageElements.forEach(imgObj => ctx.drawImage(imgObj.img, imgObj.x, imgObj.y, imgObj.img.width * imgObj.scale, imgObj.img.height * imgObj.scale));
+        
+        textFields.forEach(field => {
+            ctx.font = `${field.isItalic?'italic ':''}${field.isBold?'bold ':''}${field.size}px "${field.family}"`;
+            ctx.fillStyle = field.color; ctx.textAlign = field.align; ctx.textBaseline = 'middle';
+            let txt = field.dataLink ? (row[field.dataLink] || '') : field.text;
+            if (field.transform === 'titlecase') txt = toTitleCase(txt);
+            if (field.transform === 'uppercase') txt = String(txt).toUpperCase();
+            ctx.fillText(txt, field.x, field.y);
+        });
+
+        const nameKey = dataHeaders[0];
+        const fileName = row[nameKey] ? `Sertifikat - ${row[nameKey].replace(/[\\/*?:"<>|]/g, '')}` : `Sertifikat_${i+1}`;
+
+        if (asZip) {
+            if (format === 'png') {
+                zip.file(`${fileName}.png`, canvas.toDataURL('image/png').split(',')[1], {base64: true});
             } else {
-                nextTextId = 0;
+                const doc = new jsPDF({orientation: canvas.width>canvas.height?'l':'p', unit: 'px', format: [canvas.width, canvas.height]});
+                doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
+                zip.file(`${fileName}.pdf`, doc.output('blob'));
             }
-            redrawCanvas();
-            selectTextField(null);
-            alert("Template berhasil dimuat!");
-        } catch (error) {
-            alert(`Gagal memuat template: ${error.message}`);
-        } finally {
-            loadTemplateInput.value = ''; // Reset input agar bisa muat file yang sama
+        } else {
+            const link = document.createElement('a');
+            if (format === 'png') {
+                link.download = `${fileName}.png`; link.href = canvas.toDataURL();
+            } else {
+                const doc = new jsPDF({orientation: canvas.width>canvas.height?'l':'p', unit: 'px', format: [canvas.width, canvas.height]});
+                doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
+                link.href = URL.createObjectURL(doc.output('blob')); link.download = `${fileName}.pdf`;
+            }
+            link.click();
+            await new Promise(r => setTimeout(r, 200));
         }
-    };
-    reader.onerror = () => {
-        alert("Gagal membaca file template.");
-        loadTemplateInput.value = ''; 
-    };
-    reader.readAsText(file);
+        statDiv.textContent = `Progres: ${i+1}/${dataList.length}`;
+    }
+
+    if (asZip) {
+        statDiv.textContent = "Membuat ZIP...";
+        const content = await zip.generateAsync({type: "blob"});
+        const link = document.createElement('a'); link.href = URL.createObjectURL(content);
+        link.download = 'Sertifikat_Massal.zip'; link.click();
+    }
+    statDiv.textContent = "Selesai!";
 });
-// <-- AKHIR BLOK TAMBAHAN -->
+
+// --- SIMPAN / MUAT TEMPLATE ---
+document.getElementById('save-template-btn').addEventListener('click', () => {
+    const data = { textFields, imageElements: imageElements.map(e => ({...e, img: e.img.src})) };
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: 'application/json'}));
+    link.download = 'template.json'; link.click();
+});
